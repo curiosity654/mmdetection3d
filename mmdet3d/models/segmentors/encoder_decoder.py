@@ -167,6 +167,39 @@ class EncoderDecoder3D(Base3DSegmentor):
 
         return losses
 
+    # def forward_test(self, points, img_metas, pts_semantic_mask):
+    #     """Forward function for training.
+
+    #     Args:
+    #         points (list[torch.Tensor]): List of points of shape [N, C].
+    #         img_metas (list): Image metas.
+    #         pts_semantic_mask (list[torch.Tensor]): List of point-wise semantic
+    #             labels of shape [N].
+
+    #     Returns:
+    #         dict[str, Tensor]: Losses.
+    #     """
+    #     points_cat = torch.stack(points)
+    #     pts_semantic_mask_cat = torch.stack(pts_semantic_mask)
+
+    #     # extract features using backbone
+    #     x = self.extract_feat(points_cat)
+
+    #     losses = dict()
+
+    #     loss_decode = self._decode_head_forward_train(x, img_metas,
+    #                                                   pts_semantic_mask_cat)
+    #     losses.update(loss_decode)
+
+    #     if self.with_auxiliary_head:
+    #         loss_aux = self._auxiliary_head_forward_train(
+    #             x, img_metas, pts_semantic_mask_cat)
+    #         losses.update(loss_aux)
+            
+    #     import ipdb
+    #     ipdb.set_trace()
+    #     return losses
+
     @staticmethod
     def _input_generation(coords,
                           patch_center,

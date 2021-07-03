@@ -282,6 +282,49 @@ class PointSegClassMapping(object):
         repr_str += f'max_cat_id={self.max_cat_id})'
         return repr_str
 
+@PIPELINES.register_module()
+class SemKittiClassMapping(object):
+    """Map original semantic class to valid category ids.
+
+    Map valid classes as 0~len(valid_cat_ids)-1 and
+    others as len(valid_cat_ids).
+
+    Args:
+        valid_cat_ids (tuple[int]): A tuple of valid category.
+        max_cat_id (int): The max possible cat_id in input segmentation mask.
+            Defaults to 40.
+    """
+
+    def __init__(self, label_mapping):
+        import yaml
+
+        with open(label_mapping, 'r') as stream:
+            semkittiyaml = yaml.safe_load(stream)
+        self.learning_map = semkittiyaml['learning_map']
+
+    def __call__(self, results):
+        """Call function to map original semantic class to valid category ids.
+
+        Args:
+            results (dict): Result dict containing point semantic masks.
+
+        Returns:
+            dict: The result dict containing the mapped category ids. \
+                Updated key and value are described below.
+
+                - pts_semantic_mask (np.ndarray): Mapped semantic masks.
+        """
+        assert 'pts_semantic_mask' in results
+        pts_semantic_mask = results['pts_semantic_mask']
+
+        converted_pts_sem_mask = np.vectorize(self.learning_map.__getitem__)(pts_semantic_mask)
+
+        results['pts_semantic_mask'] = converted_pts_sem_mask
+        return results
+
+    def __repr__(self):
+        repr_str = "Not Implemented"
+        return repr_str
 
 @PIPELINES.register_module()
 class NormalizePointsColor(object):
@@ -490,6 +533,7 @@ class LoadAnnotations3D(LoadAnnotations):
                  with_attr_label=False,
                  with_mask_3d=False,
                  with_seg_3d=False,
+                 semkitti=False,
                  with_bbox=False,
                  with_label=False,
                  with_mask=False,
@@ -512,6 +556,7 @@ class LoadAnnotations3D(LoadAnnotations):
         self.with_mask_3d = with_mask_3d
         self.with_seg_3d = with_seg_3d
         self.seg_3d_dtype = seg_3d_dtype
+        self.semkitti = semkitti
 
     def _load_bboxes_3d(self, results):
         """Private function to load 3D bounding box annotations.
@@ -610,6 +655,9 @@ class LoadAnnotations3D(LoadAnnotations):
             mmcv.check_file_exist(pts_semantic_mask_path)
             pts_semantic_mask = np.fromfile(
                 pts_semantic_mask_path, dtype=np.long)
+
+        if self.semkitti:
+            pts_semantic_mask = pts_semantic_mask & 0xFFFF
 
         results['pts_semantic_mask'] = pts_semantic_mask
         results['pts_seg_fields'].append('pts_semantic_mask')
