@@ -1,6 +1,6 @@
 # dataset settings
 dataset_type = 'SemanticKITTIDataset'
-data_root = './data/semkitti/'
+data_root = './data/semkitti/dataset/sequences/'
 class_names = ('unlabeled', 'car', 'bicycle', 'motorcycle', 'truck', 'bus',
                'person', 'bicyclist', 'motorcyclist', 'road', 'parking',
                'sidewalk', 'other-ground', 'building', 'fence', 'vegetation',
@@ -11,8 +11,8 @@ train_pipeline = [
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         shift_height=False,
-        use_color=True,
-        load_dim=3,
+        use_color=False,
+        load_dim=4,
         use_dim=[0, 1, 2]),
     dict(
         type='LoadAnnotations3D',
@@ -25,16 +25,18 @@ train_pipeline = [
     dict(
         type='SemKittiClassMapping',
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml"),
+    dict(type='IndoorPointSample', num_points=80000),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='Collect3D', keys=['points', 'pts_semantic_mask'])
 ]
+
 test_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         shift_height=False,
-        use_color=True,
-        load_dim=3,
+        use_color=False,
+        load_dim=4,
         use_dim=[0, 1, 2]),
     dict(
         # a wrapper in order to successfully call test function
@@ -69,8 +71,8 @@ eval_pipeline = [
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         shift_height=False,
-        use_color=True,
-        load_dim=3,
+        use_color=False,
+        load_dim=4,
         use_dim=[0, 1, 2]),
     dict(
         type='LoadAnnotations3D',
@@ -83,20 +85,20 @@ eval_pipeline = [
     dict(
         type='SemKittiClassMapping',
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml"),
-    dict(
-        type='DefaultFormatBundle3D',
-        with_label=False,
-        class_names=class_names),
+    # dict(type='IndoorPointSample', num_points=16384),
+    dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='Collect3D', keys=['points', 'pts_semantic_mask'])
 ]
 
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=4,
+    samples_per_gpu=16,
+    workers_per_gpu=8,
     train=dict(
         type=dataset_type,
         data_root=data_root,
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml",
+        test_mode=False,
+        ignore_index=0,
         pipeline=train_pipeline,
         classes=class_names,
         imageset='train'),
@@ -104,14 +106,18 @@ data = dict(
         type=dataset_type,
         data_root=data_root,
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml",
-        pipeline=train_pipeline,
+        test_mode=False,
+        ignore_index=0,
+        pipeline=test_pipeline,
         classes=class_names,
         imageset='val'),
     test=dict(
         type=dataset_type,
         data_root=data_root,
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml",
-        pipeline=train_pipeline,
+        test_mode=True,
+        ignore_index=0,
+        pipeline=test_pipeline,
         classes=class_names,
         imageset='test'))
 

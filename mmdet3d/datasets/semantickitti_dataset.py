@@ -14,11 +14,13 @@ from .pipelines import Compose
 from .utils import extract_result_dict, get_loading_pipeline
 
 def absoluteFilePaths(directory):
+    res = []
     for dirpath, _, filenames in os.walk(directory):
         filenames.sort()
         for f in filenames:
-            yield os.path.abspath(os.path.join(dirpath, f))
-
+            res.append(os.path.abspath(os.path.join(dirpath, f)))
+            # yield os.path.abspath(os.path.join(dirpath, f))
+    return res
 @DATASETS.register_module()
 @SEG_DATASETS.register_module()
 class SemanticKITTIDataset(Dataset):
@@ -119,9 +121,19 @@ class SemanticKITTIDataset(Dataset):
         else:
             raise Exception('Split must be train/val/test')
 
-        self.im_idx = []
+        # import ipdb
+        # ipdb.set_trace()
+
+        self.data_infos = []
         for i_folder in split:
-            self.im_idx += absoluteFilePaths('/'.join([data_root, str(i_folder).zfill(2), 'velodyne']))
+            directory = '/'.join([data_root, str(i_folder).zfill(2), 'velodyne'])
+            for dirpath, _, filenames in os.walk(directory):
+                filenames.sort()
+                for f in filenames:
+                    data_info = dict(
+                        pts_path = os.path.abspath(os.path.join(dirpath, f))
+                    )
+                    self.data_infos.append(data_info)
     
         if pipeline is not None:
             self.pipeline = Compose(pipeline)
@@ -134,7 +146,7 @@ class SemanticKITTIDataset(Dataset):
 
     def __len__(self):
         'Denotes the total number of samples'
-        return len(self.im_idx)
+        return len(self.data_infos)
 
     def get_data_info(self, index):
         """Get data info according to the given index.
@@ -151,11 +163,12 @@ class SemanticKITTIDataset(Dataset):
                 - file_name (str): Filename of point clouds.
                 - ann_info (dict): Annotation info.
         """
-        pts_filename = self.im_idx[index]
+        pts_filename = self.data_infos[index]['pts_path']
 
         input_dict = dict(
             pts_filename=pts_filename,
-            file_name=pts_filename)
+            file_name=pts_filename
+        )
 
         if not self.test_mode:
             annos = self.get_ann_info(index)
@@ -176,7 +189,7 @@ class SemanticKITTIDataset(Dataset):
         """
         # Use index to get the annos, thus the evalhook could also use this api
 
-        pts_semantic_mask_path = self.im_idx[index].replace('velodyne', 'labels')[:-3] + 'label'
+        pts_semantic_mask_path = self.data_infos[index]['pts_path'].replace('velodyne', 'labels')[:-3] + 'label'
 
         anns_results = dict(pts_semantic_mask_path=pts_semantic_mask_path)
         return anns_results
@@ -241,7 +254,7 @@ class SemanticKITTIDataset(Dataset):
         assert out_dir is not None, 'Expect out_dir, got none.'
         pipeline = self._get_pipeline(pipeline)
         for i, result in enumerate(results):
-            pts_path = self.im_idx[i]
+            pts_path = self.data_infos[i]
             file_name = osp.split(pts_path)[-1].split('.')[0]
             points, gt_sem_mask = self._extract_data(
                 i, pipeline, ['points', 'pts_semantic_mask'], load_annos=True)
@@ -393,7 +406,7 @@ class SemanticKITTIDataset(Dataset):
         assert isinstance(
             results, list), f'Expect results to be list, got {type(results)}.'
         assert len(results) > 0, 'Expect length of results > 0.'
-        assert len(results) == len(self.im_idx)
+        assert len(results) == len(self.data_infos)
         assert isinstance(
             results[0], dict
         ), f'Expect elements in results to be dict, got {type(results[0])}.'
@@ -403,7 +416,7 @@ class SemanticKITTIDataset(Dataset):
         gt_sem_masks = [
             self._extract_data(
                 i, load_pipeline, 'pts_semantic_mask', load_annos=True)
-            for i in range(len(self.im_idx))
+            for i in range(len(self.data_infos))
         ]
         ret_dict = seg_eval(
             gt_sem_masks,
@@ -417,11 +430,11 @@ class SemanticKITTIDataset(Dataset):
 
         return ret_dict
 
-        # raw_data = np.fromfile(self.im_idx[index], dtype=np.float32).reshape((-1, 4))
+        # raw_data = np.fromfile(self.data_infos[index], dtype=np.float32).reshape((-1, 4))
         # if self.imageset == 'test':
         #     annotated_data = np.expand_dims(np.zeros_like(raw_data[:, 0], dtype=int), axis=1)
         # else:
-        #     annotated_data = np.fromfile(self.im_idx[index].replace('velodyne', 'labels')[:-3] + 'label',
+        #     annotated_data = np.fromfile(self.data_infos[index].replace('velodyne', 'labels')[:-3] + 'label',
         #                                  dtype=np.uint32).reshape((-1, 1))
         #     annotated_data = annotated_data & 0xFFFF  # delete high 16 digits binary
         #     annotated_data = np.vectorize(self.learning_map.__getitem__)(annotated_data)
@@ -475,7 +488,7 @@ class SemanticKITTIDataset(Dataset):
 
     #     outputs = []
     #     for i, result in enumerate(results):
-    #         info = self.im_idx[i]
+    #         info = self.data_infos[i]
     #         sample_idx = info['point_cloud']['lidar_idx']
     #         pred_sem_mask = result['semantic_mask'].numpy().astype(np.int)
     #         pred_label = pred2label[pred_sem_mask]
