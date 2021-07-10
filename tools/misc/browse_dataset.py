@@ -114,7 +114,8 @@ def show_seg_data(idx, dataset, out_dir, filename, show=False):
         np.array(dataset.PALETTE),
         dataset.ignore_index,
         show=show,
-        snapshot=True)
+        snapshot=True,
+        norm_color=True)
 
 
 def show_proj_bbox_img(idx,

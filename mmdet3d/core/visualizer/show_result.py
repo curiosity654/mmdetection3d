@@ -7,7 +7,7 @@ from .image_vis import (draw_camera_bbox3d_on_img, draw_depth_bbox3d_on_img,
                         draw_lidar_bbox3d_on_img)
 
 
-def _write_obj(points, out_filename):
+def _write_obj(points, out_filename, norm_color=False):
     """Write points into ``obj`` format for meshlab visualization.
 
     Args:
@@ -18,10 +18,16 @@ def _write_obj(points, out_filename):
     fout = open(out_filename, 'w')
     for i in range(N):
         if points.shape[1] == 6:
-            c = points[i, 3:].astype(int)
-            fout.write(
-                'v %f %f %f %d %d %d\n' %
-                (points[i, 0], points[i, 1], points[i, 2], c[0], c[1], c[2]))
+            if norm_color:
+                c = points[i, 3:]
+                fout.write(
+                    'v %f %f %f %f %f %f\n' %
+                    (points[i, 0], points[i, 1], points[i, 2], c[0], c[1], c[2]))
+            else:
+                c = points[i, 3:].astype(int)
+                fout.write(
+                    'v %f %f %f %d %d %d\n' %
+                    (points[i, 0], points[i, 1], points[i, 2], c[0], c[1], c[2]))
 
         else:
             fout.write('v %f %f %f\n' %
@@ -132,7 +138,8 @@ def show_seg_result(points,
                     palette,
                     ignore_index=None,
                     show=False,
-                    snapshot=False):
+                    snapshot=False,
+                    norm_color=False):
     """Convert results into format that is directly readable for meshlab.
 
     Args:
@@ -163,9 +170,13 @@ def show_seg_result(points,
 
     if gt_seg is not None:
         gt_seg_color = palette[gt_seg]
+        if norm_color:
+            gt_seg_color = np.array(gt_seg_color, dtype='float32')/255
         gt_seg_color = np.concatenate([points[:, :3], gt_seg_color], axis=1)
     if pred_seg is not None:
         pred_seg_color = palette[pred_seg]
+        if norm_color:
+            pred_seg_color = np.array(pred_seg_color, dtype='float32')/255
         pred_seg_color = np.concatenate([points[:, :3], pred_seg_color],
                                         axis=1)
 
@@ -190,11 +201,10 @@ def show_seg_result(points,
         _write_obj(points, osp.join(result_path, f'{filename}_points.obj'))
 
     if gt_seg is not None:
-        _write_obj(gt_seg_color, osp.join(result_path, f'{filename}_gt.obj'))
+        _write_obj(gt_seg_color, osp.join(result_path, f'{filename}_gt.obj'), norm_color=norm_color)
 
     if pred_seg is not None:
-        _write_obj(pred_seg_color, osp.join(result_path,
-                                            f'{filename}_pred.obj'))
+        _write_obj(pred_seg_color, osp.join(result_path, f'{filename}_pred.obj'), norm_color=norm_color)
 
 
 def show_multi_modality_result(img,

@@ -66,6 +66,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs_zh-CN/_build/
 
 # PyBuilder
 target/
@@ -132,5 +133,6 @@ data/sunrgbd/OFFICIAL_SUNRGBD/
 # Waymo evaluation
 mmdet3d/core/evaluation/waymo_utils/compute_detection_metrics_main
 
-# personal playground
+# personal
 playground
+filebrowser.db
