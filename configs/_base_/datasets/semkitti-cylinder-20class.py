@@ -25,9 +25,11 @@ train_pipeline = [
     dict(
         type='SemKittiClassMapping',
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml"),
-    dict(type='IndoorPointSample', num_points=80000),
-    dict(type='DefaultFormatBundle3D', class_names=class_names),
-    dict(type='Collect3D', keys=['points', 'pts_semantic_mask'])
+    dict(
+        type='ToCylinderDataset',
+        grid_size=[480, 360, 32]),
+    dict(type='Cylinder3DFormatBundle'),
+    dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
 ]
 
 test_pipeline = [
@@ -38,6 +40,14 @@ test_pipeline = [
         use_color=False,
         load_dim=4,
         use_dim=[0, 1, 2]),
+    dict(
+        type='LoadAnnotations3D',
+        with_bbox_3d=False,
+        with_label_3d=False,
+        with_mask_3d=False,
+        with_seg_3d=True,
+        semkitti=True,
+        seg_3d_dtype='uint32'),
     dict(
         # a wrapper in order to successfully call test function
         # actually we don't perform test-time-aug
@@ -57,10 +67,10 @@ test_pipeline = [
                 flip_ratio_bev_horizontal=0.0,
                 flip_ratio_bev_vertical=0.0),
             dict(
-                type='DefaultFormatBundle3D',
-                class_names=class_names,
-                with_label=False),
-            dict(type='Collect3D', keys=['points'])
+                type='ToCylinderDataset',
+                grid_size=[480, 360, 32]),
+            dict(type='Cylinder3DFormatBundle'),
+            dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
         ])
 ]
 # construct a pipeline for data and gt loading in show function
@@ -85,9 +95,11 @@ eval_pipeline = [
     dict(
         type='SemKittiClassMapping',
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml"),
-    # dict(type='IndoorPointSample', num_points=16384),
-    dict(type='DefaultFormatBundle3D', class_names=class_names),
-    dict(type='Collect3D', keys=['points', 'pts_semantic_mask'])
+    dict(
+        type='ToCylinderDataset',
+        grid_size=[480, 360, 32]),
+    dict(type='Cylinder3DFormatBundle'),
+    dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
 ]
 
 data = dict(
@@ -109,8 +121,9 @@ data = dict(
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml",
         test_mode=False,
         ignore_index=0,
-        pipeline=test_pipeline,
+        pipeline=eval_pipeline,
         classes=class_names,
+        load_interval=160,
         imageset='val'),
     test=dict(
         type=dataset_type,
@@ -122,4 +135,5 @@ data = dict(
         classes=class_names,
         imageset='test'))
 
-evaluation = dict(pipeline=eval_pipeline)
+# eval settings
+evaluation = dict(pipeline=eval_pipeline, interval=1)

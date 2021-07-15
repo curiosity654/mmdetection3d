@@ -79,6 +79,36 @@ class DefaultFormatBundle(object):
     def __repr__(self):
         return self.__class__.__name__
 
+@PIPELINES.register_module()
+class Cylinder3DFormatBundle(object):
+    """Cylinder3D formatting bundle.
+    """
+
+    def __init__(self, ):
+        return
+
+    def __call__(self, results):
+        """Call function to transform and format common fields in results.
+
+        Args:
+            results (dict): Result dict contains the data to convert.
+
+        Returns:
+            dict: The result dict contains the data that is formatted with
+                default bundle.
+        """
+        if 'voxel_label' in results:
+            results['voxel_label'] = DC(to_tensor(results['voxel_label']), stack=True)
+
+        for key in ['voxel_feat', 'grid_ind']:
+            if key not in results:
+                continue
+            results[key] = DC(to_tensor(results[key]))
+        
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__
 
 @PIPELINES.register_module()
 class Collect3D(object):

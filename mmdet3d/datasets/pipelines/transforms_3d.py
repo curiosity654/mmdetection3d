@@ -10,6 +10,99 @@ from mmdet.datasets.pipelines import RandomFlip
 from ..builder import OBJECTSAMPLERS
 from .data_augment_utils import noise_per_object_v3_
 
+# TODO move funcs into Cylinder class
+def cart2polar(input_xyz):
+    rho = np.sqrt(input_xyz[:, 0] ** 2 + input_xyz[:, 1] ** 2)
+    phi = np.arctan2(input_xyz[:, 1], input_xyz[:, 0])
+    return np.stack((rho, phi, input_xyz[:, 2]), axis=1)
+
+def polar2cat(input_xyz_polar):
+    # print(input_xyz_polar.shape)
+    x = input_xyz_polar[0] * np.cos(input_xyz_polar[1])
+    y = input_xyz_polar[0] * np.sin(input_xyz_polar[1])
+    return np.stack((x, y, input_xyz_polar[2]), axis=0)
+
+import numba as nb
+@nb.jit('u1[:,:,:](u1[:,:,:],i8[:,:])', nopython=True, cache=True, parallel=False)
+def nb_process_label(processed_label, sorted_label_voxel_pair):
+    label_size = 256
+    counter = np.zeros((label_size,), dtype=np.uint16)
+    counter[sorted_label_voxel_pair[0, 3]] = 1
+    cur_sear_ind = sorted_label_voxel_pair[0, :3]
+    for i in range(1, sorted_label_voxel_pair.shape[0]):
+        cur_ind = sorted_label_voxel_pair[i, :3]
+        if not np.all(np.equal(cur_ind, cur_sear_ind)):
+            processed_label[cur_sear_ind[0], cur_sear_ind[1], cur_sear_ind[2]] = np.argmax(counter)
+            counter = np.zeros((label_size,), dtype=np.uint16)
+            cur_sear_ind = cur_ind
+        counter[sorted_label_voxel_pair[i, 3]] += 1
+    processed_label[cur_sear_ind[0], cur_sear_ind[1], cur_sear_ind[2]] = np.argmax(counter)
+    return processed_label
+
+@PIPELINES.register_module()
+class ToCylinderDataset(object):
+    def __init__(self,
+                 grid_size,
+                 ignore_label=255,
+                 return_test=False,
+                 fixed_volume_space=False,
+                 max_volume_space=[50, np.pi, 2],
+                 min_volume_space=[0, -np.pi, -4],):
+        self.grid_size = np.asarray(grid_size)
+        self.ignore_label = ignore_label
+        self.return_test = return_test
+        self.fixed_volume_space = fixed_volume_space
+        self.max_volume_space = max_volume_space
+        self.min_volume_space = min_volume_space
+
+    def __call__(self, input_dict):
+        xyz = input_dict['points'].tensor
+        labels = input_dict['pts_semantic_mask']
+        labels = np.expand_dims(labels, 1)
+        # TODO add support for sig
+        xyz_pol = cart2polar(xyz)
+
+        max_bound_r = np.percentile(xyz_pol[:, 0], 100, axis=0) # max for rho
+        min_bound_r = np.percentile(xyz_pol[:, 0], 0, axis=0)
+        max_bound = np.max(xyz_pol[:, 1:], axis=0)
+        min_bound = np.min(xyz_pol[:, 1:], axis=0)
+        max_bound = np.concatenate(([max_bound_r], max_bound))
+        min_bound = np.concatenate(([min_bound_r], min_bound))
+        if self.fixed_volume_space:
+            max_bound = np.asarray(self.max_volume_space)
+            min_bound = np.asarray(self.min_volume_space)
+        # get grid index
+        crop_range = max_bound - min_bound
+        cur_grid_size = self.grid_size
+        intervals = crop_range / (cur_grid_size - 1)
+
+        if (intervals == 0).any(): print("Zero interval!")
+        # grid index for each point
+        grid_ind = (np.floor((np.clip(xyz_pol, min_bound, max_bound) - min_bound) / intervals)).astype(np.int)
+
+        voxel_position = np.zeros(self.grid_size, dtype=np.float32)
+        dim_array = np.ones(len(self.grid_size) + 1, int)
+        dim_array[0] = -1
+        voxel_position = np.indices(self.grid_size) * intervals.reshape(dim_array) + min_bound.reshape(dim_array)
+        voxel_position = polar2cat(voxel_position)
+
+        processed_label = np.ones(self.grid_size, dtype=np.uint8) * self.ignore_label
+        label_voxel_pair = np.concatenate([grid_ind, labels], axis=1)
+        label_voxel_pair = label_voxel_pair[np.lexsort((grid_ind[:, 0], grid_ind[:, 1], grid_ind[:, 2])), :]
+        processed_label = nb_process_label(np.copy(processed_label), label_voxel_pair)
+
+        # center data on each voxel for PTnet
+        voxel_centers = (grid_ind.astype(np.float32) + 0.5) * intervals + min_bound
+        return_xyz = xyz_pol - voxel_centers
+        return_xyz = np.concatenate((return_xyz, xyz_pol, xyz[:, :2]), axis=1)
+
+        # TODO add support for sig
+        input_dict['voxel_position'] = voxel_position
+        input_dict['voxel_label'] = processed_label
+        input_dict['voxel_feat'] = return_xyz
+        input_dict['grid_ind'] = grid_ind
+
+        return input_dict
 
 @PIPELINES.register_module()
 class RandomDropPointsColor(object):

@@ -84,6 +84,7 @@ class SemanticKITTIDataset(Dataset):
                  return_ref=False,
                  pipeline=None,
                  classes=None,
+                 load_interval=1,
                  palette=None,
                  ignore_index=None,
                  imageset='train'):
@@ -111,6 +112,7 @@ class SemanticKITTIDataset(Dataset):
 
         self.learning_map = self.semkittiyaml['learning_map']
         self.test_mode = test_mode
+        self.load_interval = load_interval
 
         if imageset == 'train':
             split = self.semkittiyaml['split']['train']
@@ -134,6 +136,8 @@ class SemanticKITTIDataset(Dataset):
                         pts_path = os.path.abspath(os.path.join(dirpath, f))
                     )
                     self.data_infos.append(data_info)
+
+        self.data_infos = self.data_infos[::self.load_interval]
     
         if pipeline is not None:
             self.pipeline = Compose(pipeline)
