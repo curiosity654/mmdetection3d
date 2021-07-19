@@ -29,7 +29,7 @@ train_pipeline = [
         type='ToCylinderDataset',
         grid_size=[480, 360, 32]),
     dict(type='Cylinder3DFormatBundle'),
-    dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
+    dict(type='Collect3D', keys=['voxel_feat', 'pts_semantic_mask', 'grid_ind'])
 ]
 
 test_pipeline = [
@@ -70,7 +70,7 @@ test_pipeline = [
                 type='ToCylinderDataset',
                 grid_size=[480, 360, 32]),
             dict(type='Cylinder3DFormatBundle'),
-            dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
+            dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'pts_semantic_mask'])
         ])
 ]
 # construct a pipeline for data and gt loading in show function
@@ -99,7 +99,7 @@ eval_pipeline = [
         type='ToCylinderDataset',
         grid_size=[480, 360, 32]),
     dict(type='Cylinder3DFormatBundle'),
-    dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'voxel_label'])
+    dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'pts_semantic_mask'])
 ]
 
 data = dict(

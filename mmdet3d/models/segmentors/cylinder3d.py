@@ -95,12 +95,13 @@ class Cylinder3D(Base3DSegmentor):
         out = self._decode_head_forward_test(x, img_metas)
         return out
 
-    def _decode_head_forward_train(self, x, img_metas, voxel_label):
+    def _decode_head_forward_train(self, x, img_metas, pts_semantic_mask, grid_ind):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
         loss_decode = self.decode_head.forward_train(x, img_metas,
-                                                     voxel_label,
+                                                     pts_semantic_mask,
+                                                     grid_ind,
                                                      self.train_cfg)
 
         losses.update(add_prefix(loss_decode, 'decode'))
@@ -135,7 +136,7 @@ class Cylinder3D(Base3DSegmentor):
 
         return seg_logit
 
-    def forward_train(self, voxel_feat, voxel_label, grid_ind, img_metas):
+    def forward_train(self, voxel_feat, pts_semantic_mask, grid_ind, img_metas):
         """Forward function for training.
 
         Args:
@@ -154,7 +155,7 @@ class Cylinder3D(Base3DSegmentor):
 
         losses = dict()
 
-        loss_decode = self._decode_head_forward_train(x, img_metas, voxel_label)
+        loss_decode = self._decode_head_forward_train(x, img_metas, pts_semantic_mask, grid_ind)
         losses.update(loss_decode)
 
         # if self.with_auxiliary_head:
@@ -165,7 +166,7 @@ class Cylinder3D(Base3DSegmentor):
         return losses
         
 
-    def forward_test(self, voxel_feat, voxel_label, grid_ind, img_metas):
+    def forward_test(self, voxel_feat, pts_semantic_mask, grid_ind, img_metas):
         """Forward function for training.
 
         Args:
@@ -177,19 +178,18 @@ class Cylinder3D(Base3DSegmentor):
         Returns:
             dict[str, Tensor]: Losses.
         """
-        seg_pred = []
+        # forward the whole batch and split results
+        x = self.extract_feat(voxel_feat, grid_ind)
 
-        for feat in voxel_feat:
-            x = self.extract_feat(voxel_feat, grid_ind)
-
-            seg_logits = self._decode_head_forward_test(x, img_metas)
-            seg_prob = F.softmax(seg_logits, dim=1)
-            seg_map = seg_prob.argmax(0)  # [N]
-                # to cpu tensor for consistency with det3d
-            seg_map = seg_map.cpu()
-            seg_pred.append(seg_map)
+        seg_logits = self._decode_head_forward_test(x, img_metas)
+        seg_prob = F.softmax(seg_logits, dim=1)
+        seg_map = seg_prob.argmax(1)  # [B, N]
+        # to cpu tensor for consistency with det3d
+        seg_map = seg_map.cpu()
+        # TODO more elegant?
+        seg_pred = seg_map.split(1)
         # warp in dict
-        seg_pred = [dict(semantic_mask=seg_map) for seg_map in seg_pred]
+        seg_pred = [dict(semantic_mask=seg_map.squeeze()) for seg_map in seg_pred]
 
         return seg_pred
 

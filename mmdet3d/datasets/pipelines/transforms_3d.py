@@ -43,7 +43,7 @@ def nb_process_label(processed_label, sorted_label_voxel_pair):
 class ToCylinderDataset(object):
     def __init__(self,
                  grid_size,
-                 ignore_label=255,
+                 ignore_label=0,
                  return_test=False,
                  fixed_volume_space=False,
                  max_volume_space=[50, np.pi, 2],
@@ -80,26 +80,26 @@ class ToCylinderDataset(object):
         # grid index for each point
         grid_ind = (np.floor((np.clip(xyz_pol, min_bound, max_bound) - min_bound) / intervals)).astype(np.int)
 
-        voxel_position = np.zeros(self.grid_size, dtype=np.float32)
-        dim_array = np.ones(len(self.grid_size) + 1, int)
-        dim_array[0] = -1
-        voxel_position = np.indices(self.grid_size) * intervals.reshape(dim_array) + min_bound.reshape(dim_array)
-        voxel_position = polar2cat(voxel_position)
+        # voxel_position = np.zeros(self.grid_size, dtype=np.float32)
+        # dim_array = np.ones(len(self.grid_size) + 1, int)
+        # dim_array[0] = -1
+        # voxel_position = np.indices(self.grid_size) * intervals.reshape(dim_array) + min_bound.reshape(dim_array)
+        # voxel_position = polar2cat(voxel_position)
 
-        processed_label = np.ones(self.grid_size, dtype=np.uint8) * self.ignore_label
-        label_voxel_pair = np.concatenate([grid_ind, labels], axis=1)
-        label_voxel_pair = label_voxel_pair[np.lexsort((grid_ind[:, 0], grid_ind[:, 1], grid_ind[:, 2])), :]
-        processed_label = nb_process_label(np.copy(processed_label), label_voxel_pair)
+        # processed_label = np.ones(self.grid_size, dtype=np.uint8) * self.ignore_label
+        # label_voxel_pair = np.concatenate([grid_ind, labels], axis=1)
+        # label_voxel_pair = label_voxel_pair[np.lexsort((grid_ind[:, 0], grid_ind[:, 1], grid_ind[:, 2])), :]
+        # processed_label = nb_process_label(np.copy(processed_label), label_voxel_pair)
 
         # center data on each voxel for PTnet
         voxel_centers = (grid_ind.astype(np.float32) + 0.5) * intervals + min_bound
-        return_xyz = xyz_pol - voxel_centers
-        return_xyz = np.concatenate((return_xyz, xyz_pol, xyz[:, :2]), axis=1)
+        voxel_feat = xyz_pol - voxel_centers
+        voxel_feat = np.concatenate((voxel_feat, xyz_pol, xyz[:, :2]), axis=1)
 
         # TODO add support for sig
-        input_dict['voxel_position'] = voxel_position
-        input_dict['voxel_label'] = processed_label
-        input_dict['voxel_feat'] = return_xyz
+        # input_dict['voxel_position'] = voxel_position
+        # input_dict['voxel_label'] = processed_label
+        input_dict['voxel_feat'] = voxel_feat
         input_dict['grid_ind'] = grid_ind
 
         return input_dict
