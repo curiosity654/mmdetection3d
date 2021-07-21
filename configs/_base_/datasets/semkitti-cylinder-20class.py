@@ -29,7 +29,7 @@ train_pipeline = [
         type='ToCylinderDataset',
         grid_size=[480, 360, 32]),
     dict(type='Cylinder3DFormatBundle'),
-    dict(type='Collect3D', keys=['voxel_feat', 'pts_semantic_mask', 'grid_ind'])
+    dict(type='Collect3D', keys=['voxel_feat', 'pts_semantic_mask', 'voxel_label', 'grid_ind'])
 ]
 
 test_pipeline = [
@@ -70,7 +70,7 @@ test_pipeline = [
                 type='ToCylinderDataset',
                 grid_size=[480, 360, 32]),
             dict(type='Cylinder3DFormatBundle'),
-            dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'pts_semantic_mask'])
+            dict(type='Collect3D', keys=['voxel_feat', 'grid_ind', 'pts_semantic_mask', 'voxel_label', 'voxel_position'])
         ])
 ]
 # construct a pipeline for data and gt loading in show function
@@ -113,7 +113,7 @@ data = dict(
         ignore_index=0,
         pipeline=train_pipeline,
         classes=class_names,
-        load_interval=200,
+        load_interval=100,
         imageset='train'),
     val=dict(
         type=dataset_type,
@@ -123,7 +123,7 @@ data = dict(
         ignore_index=0,
         pipeline=eval_pipeline,
         classes=class_names,
-        load_interval=160,
+        load_interval=10,
         imageset='val'),
     test=dict(
         type=dataset_type,
@@ -131,7 +131,7 @@ data = dict(
         label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml",
         test_mode=True,
         ignore_index=0,
-        pipeline=test_pipeline,
+        pipeline=eval_pipeline,
         classes=class_names,
         imageset='test'))
 

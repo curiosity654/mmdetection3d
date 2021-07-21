@@ -332,21 +332,6 @@ class Cylinder3DHead(nn.Module):
         # TODO
         pass
 
-    def _extract_input(self, feat_dict):
-        """Extract inputs from features dictionary.
-
-        Args:
-            feat_dict (dict): Feature dict from backbone.
-
-        Returns:
-            list[torch.Tensor]: Coordinates of multiple levels of points.
-            list[torch.Tensor]: Features of multiple levels of points.
-        """
-        voxel_features = feat_dict['features_3d']
-        coors = feat_dict['coords']
-
-        return voxel_features, coors
-
     def forward(self, feat_dict, batch_size):
         """Forward pass.
 
@@ -356,7 +341,7 @@ class Cylinder3DHead(nn.Module):
         Returns:
             torch.Tensor: Segmentation map of shape [B, num_classes, N].
         """
-        voxel_features, coors = self._extract_input(feat_dict)
+        voxel_features, coors = feat_dict['features_3d'], feat_dict['unq']
 
         coors = coors.int()
         ret = spconv.SparseConvTensor(voxel_features, coors, self.sparse_shape,
@@ -378,10 +363,12 @@ class Cylinder3DHead(nn.Module):
 
         logits = self.logits(up0e)
         
-        # output = logits.dense()
-        return logits.features.unsqueeze(0).permute(0,2,1)
+        output = logits.dense()
 
-    def forward_train(self, inputs, img_metas, pts_semantic_mask, grid_ind, train_cfg):
+        return output
+        # return logits.features.unsqueeze(0).permute(0,2,1)
+
+    def forward_train(self, inputs, img_metas, pts_semantic_mask, voxel_label, grid_ind, train_cfg):
         """Forward function for training.
 
         Args:
@@ -395,8 +382,8 @@ class Cylinder3DHead(nn.Module):
             dict[str, Tensor]: a dictionary of loss components
         """
         seg_logits = self.forward(inputs, self.train_batch_size)
-        vox_label = self.get_targets(pts_semantic_mask, grid_ind)
-        losses = self.losses(seg_logits, vox_label)
+        # vox_label = self.get_targets(pts_semantic_mask, inputs['unq_inv'])
+        losses = self.losses(seg_logits, voxel_label)
         return losses
 
     def forward_test(self, inputs, img_metas, test_cfg):
@@ -411,29 +398,36 @@ class Cylinder3DHead(nn.Module):
             Tensor: Output segmentation map.
         """
         seg_logits = self.forward(inputs, self.eval_batch_size)
-        output = F.softmax(seg_logits, dim=1)
-        return output
 
-    def get_targets(self, pts_semantic_mask, grid_ind):
+        return seg_logits
+
+    def get_targets(self, pts_semantic_mask, uni_inv):
         """
         generate voxel label using point label       
         """
         # device = pts_semantic_mask.device
-        onehot = F.one_hot(pts_semantic_mask)
-        unis, uni_invs = [], []
-        for i in range(pts_semantic_mask.size(0)):
-            uni, uni_inv = torch.unique(
-                grid_ind[i], dim=0, return_inverse=True)
-            unis.append(uni)
-            uni_invs.append(uni_inv)
-        uni_invs = torch.stack(uni_invs)
-        label_cnt = torch_scatter.scatter_sum(onehot, uni_invs, dim=1)
-        vox_label = torch.argmax(label_cnt, dim=2)
-        return vox_label
+        # TODO how to parallel
+        # pts_semantic_mask_tmp = pts_semantic_mask[0]
+        vox_labels = []
+        for i in range(len(pts_semantic_mask)):
+            onehot = F.one_hot(pts_semantic_mask[i])
+            label_cnt = torch_scatter.scatter_sum(onehot.T, uni_inv, dim=1)
+            vox_label = torch.argmax(label_cnt, dim=0)
+            vox_labels.append(vox_label)
+        vox_labels = torch.stack(vox_labels)
+
+        return vox_labels
+
+    def loss_simple(self, outputs, pts_semantic_mask):
+        loss = dict()
+        vox_label = pts_semantic_mask.type(torch.LongTensor).to(outputs.device)
+        # loss['loss_sem_seg'] = self.loss_wce(outputs, vox_label, ignore_index=self.ignore_index)
+        loss['loss_sem_seg'] = F.cross_entropy(outputs, vox_label, ignore_index=self.ignore_index)
+        return loss
 
     def losses(self, outputs, pts_semantic_mask):
         loss = dict()
         vox_label = pts_semantic_mask.type(torch.LongTensor).to(outputs.device)
-        loss['loss_sem_seg'] = self.lovasz_softmax(torch.nn.functional.softmax(outputs, dim=1), vox_label, ignore=self.ignore_index) + self.loss_wce(
+        loss['loss_sem_seg'] = self.lovasz_softmax(F.softmax(outputs, dim=1), vox_label, ignore=self.ignore_index) + self.loss_wce(
             outputs, vox_label, ignore_index=self.ignore_index)
         return loss

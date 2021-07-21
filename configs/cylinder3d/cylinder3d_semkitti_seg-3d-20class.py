@@ -16,4 +16,13 @@ class_names = ('unlabeled', 'car', 'bicycle', 'motorcycle', 'truck', 'bus',
                'trunck', 'terrian', 'pole', 'traffic-sign')
 
 # runtime settings
-checkpoint_config = dict(interval=5)
+checkpoint_config = dict(interval=1)
+
+log_config = dict( 
+    interval=25, 
+    hooks=[ 
+        dict(type='TextLoggerHook'), 
+        dict(type='WandbLoggerHook', init_kwargs=dict(project='Cylinder3d')), 
+    ])
+
+runner = dict(type='EpochBasedRunner', max_epochs=50)

@@ -100,7 +100,7 @@ class Cylinder3DFormatBundle(object):
         if 'voxel_label' in results:
             results['voxel_label'] = DC(to_tensor(results['voxel_label']), stack=True)
 
-        for key in ['voxel_feat', 'grid_ind']:
+        for key in ['voxel_feat', 'grid_ind', 'pts_semantic_mask']:
             if key not in results:
                 continue
             results[key] = DC(to_tensor(results[key]))
