@@ -17,7 +17,7 @@ class CylinderFeatureGenerator(nn.Module):
 
     def __init__(self,
                  grid_size,
-                 fea_dim=8,  # TODO add support for feature dim
+                 fea_dim=9,  # TODO add support for feature dim
                  out_pt_fea_dim=64,
                  max_pt_per_encode=64,
                  fea_compre=None):

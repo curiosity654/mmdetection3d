@@ -197,54 +197,11 @@ class SemanticKITTIDataset(Dataset):
 
         anns_results = dict(pts_semantic_mask_path=pts_semantic_mask_path)
         return anns_results
-
-    def pre_pipeline(self, results):
-        """Initialization before data preparation.
-
-        Args:
-            results (dict): Dict before data preprocessing.
-
-                - img_fields (list): Image fields.
-                - pts_mask_fields (list): Mask fields of points.
-                - pts_seg_fields (list): Mask fields of point segments.
-                - mask_fields (list): Fields of masks.
-                - seg_fields (list): Segment fields.
-        """
-        results['img_fields'] = []
-        results['pts_mask_fields'] = []
-        results['pts_seg_fields'] = []
-        results['mask_fields'] = []
-        results['seg_fields'] = []
-        results['bbox3d_fields'] = []
-
-    def prepare_train_data(self, index):
-        """Training data preparation.
-
-        Args:
-            index (int): Index for accessing the target data.
-
-        Returns:
-            dict: Training data dict of the corresponding index.
-        """
-        input_dict = self.get_data_info(index)
-        self.pre_pipeline(input_dict)
-        example = self.pipeline(input_dict)
-        return example
-
-    def prepare_test_data(self, index):
-        """Prepare data for testing.
-
-        Args:
-            index (int): Index for accessing the target data.
-
-        Returns:
-            dict: Testing data dict of the corresponding index.
-        """
-        input_dict = self.get_data_info(index)
-        self.pre_pipeline(input_dict)
-        example = self.pipeline(input_dict)
-        return example
     
+    def pre_pipeline(self, results):
+        # results['pts_mask_fields'] = []
+        results['pts_seg_fields'] = []
+
     def show(self, results, out_dir, show=True, pipeline=None):
         """Results visualization.
 
@@ -269,41 +226,14 @@ class SemanticKITTIDataset(Dataset):
                             np.array(self.PALETTE), self.ignore_index, show)
 
     def __getitem__(self, index):
-        if self.test_mode:
-            return self.prepare_test_data(index)
         while True:
-            data = self.prepare_train_data(index)
+            input_dict = self.get_data_info(index)
+            self.pre_pipeline(input_dict)
+            data = self.pipeline(input_dict)
             if data is None:
                 idx = self._rand_another(idx)
                 continue
             return data
-
-    def _build_default_pipeline(self):
-        """Build the default pipeline for this dataset."""
-        pipeline = [
-            dict(
-                type='LoadPointsFromFile',
-                coord_type='LIDAR',
-                shift_height=False,
-                use_color=False,
-                load_dim=4,
-                use_dim=[0, 1, 2]),
-            dict(
-                type='LoadAnnotations3D',
-                with_bbox_3d=False,
-                with_label_3d=False,
-                with_mask_3d=False,
-                with_seg_3d=True,
-                semkitti=True,
-                seg_3d_dtype='uint32'),
-            dict(
-                type='SemKittiClassMapping',
-                label_mapping="/mmdetection3d-dev/data/semkitti/label-mapping.yaml"),
-            dict(type='IndoorPointSample', num_points=16384),
-            dict(type='DefaultFormatBundle3D', class_names=self.CLASSES),
-            dict(type='Collect3D', keys=['points', 'pts_semantic_mask'])
-        ]
-        return Compose(pipeline)
 
     def _get_pipeline(self, pipeline):
         """Get data loading pipeline in self.show/evaluate function.
@@ -312,14 +242,7 @@ class SemanticKITTIDataset(Dataset):
             pipeline (list[dict] | None): Input pipeline. If None is given, \
                 get from self.pipeline.
         """
-        if pipeline is None:
-            if not hasattr(self, 'pipeline') or self.pipeline is None:
-                warnings.warn(
-                    'Use default pipeline for data loading, this may cause '
-                    'errors when data is on ceph')
-                return self._build_default_pipeline()
-            loading_pipeline = get_loading_pipeline(self.pipeline.transforms)
-            return Compose(loading_pipeline)
+        assert pipeline is not None
         return Compose(pipeline)
 
     def _extract_data(self, index, pipeline, key, load_annos=False):

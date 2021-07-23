@@ -56,7 +56,10 @@ class ToCylinderDataset(object):
         self.min_volume_space = min_volume_space
 
     def __call__(self, input_dict):
-        xyz = input_dict['points'].tensor
+        points = input_dict['points'].tensor
+        xyz = points[:,:3]
+        sig = points[:,-1]
+
         labels = input_dict['pts_semantic_mask']
         labels = np.expand_dims(labels, 1)
         # TODO add support for sig
@@ -95,8 +98,8 @@ class ToCylinderDataset(object):
         voxel_centers = (grid_ind.astype(np.float32) + 0.5) * intervals + min_bound
         voxel_feat = xyz_pol - voxel_centers
         voxel_feat = np.concatenate((voxel_feat, xyz_pol, xyz[:, :2]), axis=1)
+        voxel_feat = np.concatenate((voxel_feat, sig[..., np.newaxis]), axis=1)
 
-        # TODO add support for sig
         input_dict['voxel_position'] = voxel_position
         input_dict['voxel_label'] = processed_label
         input_dict['voxel_feat'] = voxel_feat
