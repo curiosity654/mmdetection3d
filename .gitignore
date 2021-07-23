@@ -137,3 +137,4 @@ mmdet3d/core/evaluation/waymo_utils/compute_detection_metrics_main
 playground
 filebrowser.db
 wandb
+INFO

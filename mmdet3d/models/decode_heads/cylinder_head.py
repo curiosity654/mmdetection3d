@@ -291,11 +291,13 @@ class Cylinder3DHead(nn.Module):
         self.strict = False
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
-        self.loss_wce = build_loss(loss_wce)
+        # self.loss_wce = build_loss(loss_wce)
         # self.loss_lovasz = build_loss(loss_lovasz)
         self.lovasz_softmax = lovasz_softmax
 
         self.ignore_index = ignore_index
+
+        self.loss_func = torch.nn.CrossEntropyLoss(ignore_index=ignore_index)
 
         sparse_shape = np.array(output_shape)
         # sparse_shape[0] = 11
@@ -428,6 +430,6 @@ class Cylinder3DHead(nn.Module):
     def losses(self, outputs, pts_semantic_mask):
         loss = dict()
         vox_label = pts_semantic_mask.type(torch.LongTensor).to(outputs.device)
-        loss['loss_sem_seg'] = self.lovasz_softmax(F.softmax(outputs, dim=1), vox_label, ignore=self.ignore_index) + self.loss_wce(
-            outputs, vox_label, ignore_index=self.ignore_index)
+        loss['loss_sem_seg'] = self.lovasz_softmax(F.softmax(outputs, dim=1), vox_label, ignore=self.ignore_index) + self.loss_func(
+            outputs, vox_label)
         return loss
